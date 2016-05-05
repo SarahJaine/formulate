@@ -8,9 +8,9 @@ Generate homebrew formula resources for your virutal environment's pypi packages
 
 Write the formula resources to a new file:
 
-`formulate virtual >brand_new_file.rb`
+`formulate virtual --write brand_new_file.rb`
 
 Append the formula resources to the end of an existing file:
 
-`formulate virtual >>some_old_file.rb`
+`formulate virtual --append some_old_file.rb`
 

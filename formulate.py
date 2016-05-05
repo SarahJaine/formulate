@@ -7,7 +7,7 @@ def cli():
 
 
 @cli.command()
-@click.option('--to')
+@click.option('--write')
 @click.option('--append')
 def virtual(to, append):
     '''Generate homebrew formula resources for your virutal environment's \
