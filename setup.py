@@ -1,12 +1,12 @@
 from setuptools import setup
 
-# long_description = open('README.md').read()
+long_description = open('README.md').read()
 
 setup(
         name='formulate',
         version='0.1',
         description='',
-        long_description='',
+        long_description=long_description,
         url='',
         author='Sarah-Jaine Szekeresh',
         author_email='sarahjaine@isl.co',
@@ -21,6 +21,7 @@ setup(
         py_modules=['formulate'],
         install_requires=[
             'click>=6.6,<7',
+            'requests>=2.9.1,<3',
          ],
         entry_points='''
             [console_scripts]

@@ -1,0 +1,3 @@
+click==6.6
+-e git+git@github.com:SarahJaine/formulate.git@02a631edcf7423dd8743d5e166675e7997f520bb#egg=formulate
+requests==2.10.0
