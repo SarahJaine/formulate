@@ -9,6 +9,15 @@ resource_template = Template("""\tresource "{{ resource }}" do\n\
     \tend""")
 
 
+def get_gz_url(raw_data):
+    '''return GNU zipped file url from pypi get response'''
+    url_keys = raw_data.json()['urls']
+    for each in url_keys:
+        if each['url'][-3:] == ".gz":
+            url = each['url']
+            return url
+
+
 @click.command()
 @click.option('--r', is_flag=True,
               help='Write resources for ./requirements.txt.')
@@ -30,14 +39,9 @@ def cli(r):
                             "https://pypi.python.org/pypi/{0}/{1}/json".format(
                                 name, version))
                     if pypi.status_code == 200:
-                        url_keys = pypi.json()['urls']
-                        for each in url_keys:
-                            if each['url'][-3:] == ".gz":
-                                url = each['url']
+                        url = get_gz_url(pypi)
                         download_response = requests.get(url)
                         sha = sha256(download_response.content).hexdigest()
-                        resources[name] = {
-                            'name': name, 'url': url, 'sha256': sha}
 
                     else:
                         pypi = requests.get(
@@ -49,14 +53,11 @@ def cli(r):
                                 Would you like to use the latest \
                                 stable release, version {2}, instead?".format(
                                     name, version, version_latest))
-                            url_keys = pypi.json()['urls']
-                            for each in url_keys:
-                                if each['url'][-3:] == ".gz":
-                                    url = each['url']
+                            url = get_gz_url(pypi)
                             download_response = requests.get(url)
                             sha = sha256(download_response.content).hexdigest()
-                            resources[name] = {
-                                'name': name, 'url': url, 'sha256': sha}
+                    resources[name] = {
+                        'name': name, 'url': url, 'sha256': sha}
                     for key, sub in resources.items():
                         # print(key, sub)
                         print(resource_template.render(resource=key,
