@@ -1,6 +1,12 @@
 from hashlib import sha256
 import click
 import requests
+from jinja2 import Template
+
+resource_template = Template("""\tresource "{{ resource }}" do\n\
+    \t\turl "{{ url }}"\n\
+    \t\tsha256 "{{ sha256 }}"\n\
+    \tend""")
 
 
 @click.command()
@@ -24,7 +30,10 @@ def cli(r):
                             "https://pypi.python.org/pypi/{0}/{1}/json".format(
                                 name, version))
                     if pypi.status_code == 200:
-                        url = pypi.json()['urls'][0]['url']
+                        url_keys = pypi.json()['urls']
+                        for each in url_keys:
+                            if each['url'][-3:] == ".gz":
+                                url = each['url']
                         download_response = requests.get(url)
                         sha = sha256(download_response.content).hexdigest()
                         resources[name] = {
@@ -48,7 +57,10 @@ def cli(r):
                             sha = sha256(download_response.content).hexdigest()
                             resources[name] = {
                                 'name': name, 'url': url, 'sha256': sha}
-                    click.echo(resources)
+                    for key, sub in resources.items():
+                        # print(key, sub)
+                        print(resource_template.render(resource=key,
+                              url=sub['url'], sha256=sub['sha256']))
 
                 else:
                     pass

@@ -22,6 +22,7 @@ setup(
         install_requires=[
             'click>=6.6,<7',
             'requests>=2.9.1,<3',
+            'jinja2>=2.7,<3',
          ],
         entry_points='''
             [console_scripts]
