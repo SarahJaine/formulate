@@ -42,11 +42,15 @@ def cli(r):
                         pypi_r = requests.get(
                             "https://pypi.python.org/pypi/{0}/json".format(
                                 name))
-                        if pypi_r.status_code == 200:
+                        if pypi_r.status_code != 200:
+                            click.echo('{0} was not found on pypi.'.format(
+                                name))
+                            continue
+                        else:
                             version_latest = pypi_r.json()['info']['version']
                             if click.confirm('{0} version {1} was not found. \
-                            Would you like to use the latest stable release, \
-                            version {2}, instead?'.format(
+                                Would you like to use the latest stable release, \
+                                version {2}, instead?'.format(
                                     name, version, version_latest)) is False:
                                 continue
                     url = get_gz_url(pypi_r)
