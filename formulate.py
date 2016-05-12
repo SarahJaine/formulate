@@ -3,17 +3,17 @@ import click
 import requests
 from jinja2 import Template
 
-resource_template = Template("""\tresource "{{ resource }}" do\n\
+resource_template = Template('\tresource "{{ resource }}" do\n\
     \t\turl "{{ url }}"\n\
     \t\tsha256 "{{ sha256 }}"\n\
-    \tend""")
+    \tend')
 
 
 def get_gz_url(r):
     '''return GNU zipped file url from pypi get response'''
     url_keys = r.json()['urls']
     for each in url_keys:
-        if each['url'][-3:] == ".gz":
+        if each['url'][-3:] == '.gz':
             url = each['url']
             return url
 
@@ -36,11 +36,11 @@ def cli(r):
                     version = requirement[1]
 
                     pypi_r = requests.get(
-                            "https://pypi.python.org/pypi/{0}/{1}/json".format(
+                            'https://pypi.python.org/pypi/{0}/{1}/json'.format(
                                 name, version))
                     if pypi_r.status_code != 200:
                         pypi_r = requests.get(
-                            "https://pypi.python.org/pypi/{0}/json".format(
+                            'https://pypi.python.org/pypi/{0}/json'.format(
                                 name))
                         if pypi_r.status_code != 200:
                             click.echo('{0} was not found on pypi.'.format(
