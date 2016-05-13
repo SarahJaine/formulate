@@ -1,8 +1,9 @@
-from hashlib import sha256
 import click
-import requests
+from hashlib import sha256
 from jinja2 import Template
 import re
+import requests
+import semver
 
 
 resource_template = Template('\tresource "{{ resource }}" do\n\
@@ -29,22 +30,47 @@ def get_gz_url_from_version(r, version):
             return url
 
 
-def find_version(string, operator):
-    compare_position = string.index(str(operator))
-    # Truncate sting if a comma follows
-    try:
-        comma_position = string[compare_position:].index(',')
-        out = string[compare_position+(
-            len(operator)): compare_position + comma_position-1]
-    # Do not truncate sting if there is not a following comma
-    except:
-        out = string[compare_position+len(operator):]
-    # Attempt to return as number
-    try:
-        return float(out)
-    # Return as-is in case version contains non-numeric text
-    except:
-        return out
+def find_numeric_version(releases, versions):
+    matching_releases = []
+    for release in releases:
+        if release.count('.') > 1:
+            continue
+        else:
+            operator_str_1 = release+versions[0]
+            operator_str_2 = release+versions[1]
+            if eval(operator_str_1) and eval(operator_str_2):
+                matching_releases.append(release)
+    if len(matching_releases) == 1:
+        out = matching_releases[0]
+    elif len(matching_releases) == 2:
+        out = max(float(matching_releases[0]),
+                  float(matching_releases[1]))
+    elif len(matching_releases) > 2:
+        out = sorted(matching_releases)[-1]
+    else:
+        out = False
+    return out
+
+
+def find_semantic_version(releases, versions):
+    matching_releases = []
+    for release in releases:
+        if release.count('.') == 2:
+            try:
+                if semver.match(release, versions[0]) \
+                        and semver.match(release, versions[1]):
+                    matching_releases.append(release)
+            except:
+                pass
+    if len(matching_releases) == 1:
+        out = matching_releases[0]
+    elif len(matching_releases) == 2:
+        out = semver.max_ver(matching_releases[0], matching_releases[1])
+    elif len(matching_releases) > 2:
+        out = sorted(matching_releases)[-1]
+    else:
+        out = False
+    return out
 
 
 @click.command()
@@ -57,8 +83,8 @@ def cli(r):
         with open('requirements.txt', 'r') as requirements_file:
             requirements = requirements_file.read().strip().split('\n')
 
+            resources = {}
             for requirement in requirements:
-                resources = {}
                 if '==' in requirement:
                     requirement = requirement.split('==')
                     name = requirement[0]
@@ -67,6 +93,8 @@ def cli(r):
                     pypi_r = requests.get(
                             'https://pypi.python.org/pypi/{0}/{1}/json'.format(
                                 name, version))
+
+                    # If version not found, try to find by name only
                     if pypi_r.status_code != 200:
                         pypi_r = requests.get(
                             'https://pypi.python.org/pypi/{0}/json'.format(
@@ -82,63 +110,45 @@ def cli(r):
                             version {2}, instead?'.format(
                                     name, version, version_latest)) is False:
                                 continue
+
+                # Requirements were given as a range
+                else:
+                    requirement_split = re.split('[<>=,]', requirement)
+                    requirement_split = list(filter(None, requirement_split))
+                    name = requirement_split[0]
+                    versions = requirement[len(name):].split(',')
+
+                    pypi_r = requests.get(
+                        "https://pypi.python.org/pypi/{0}/json".format(name))
+
+                    if pypi_r.status_code != 200:
+                            click.echo('{0} was not found on pypi.'.format(
+                                name))
+                            continue
+
+                    # If package on pypi, find version that meets requirements
+                    else:
+                        releases = list(pypi_r.json()['releases'].keys())
+                        # Try semantic version parsing
+                        try:
+                            version = find_semantic_version(releases, versions)
+                        # If error, try numeric version parsing
+                        except:
+                            version = find_numeric_version(releases, versions)
+
+                # If a version was found, use that version
+                if version:
+                    url = get_gz_url_from_version(pypi_r, version)
+                # Else, just use name
+                else:
                     url = get_gz_url(pypi_r)
+
+                if url:
                     download_response = requests.get(url)
                     sha = sha256(download_response.content).hexdigest()
                     resources[name] = {
                         'name': name, 'url': url, 'sha256': sha}
 
-                # Some crazy long way to deal with requirements range
-                # which I can hopefully remove
-                else:
-                    # pass
-                    requirement_split = re.split('[<>=,]', requirement)
-                    requirement_split = list(filter(None, requirement_split))
-                    name = requirement_split[0]
-
-                    greater_or_equal = 0
-                    greater = 0
-                    less_or_equal = 100
-                    less = 100
-                    if '>=' in requirement:
-                        greater_or_equal = find_version(requirement, '>=')
-                    elif '>' in requirement:
-                        greater = find_version(requirement, '>')
-                    if '<=' in requirement:
-                        less_or_equal = find_version(requirement, '<=')
-                    elif '<' in requirement:
-                        less = find_version(requirement, '<')
-
-                    pypi_r = requests.get(
-                        "https://pypi.python.org/pypi/{0}/json".format(name))
-                    if pypi_r.status_code == 200:
-                        releases = pypi_r.json()['releases'].keys()
-                        releases_clean = sorted(releases, reverse=True)
-                        print("releases=", releases_clean)
-
-                        matching_releases = []
-                        for each in releases_clean:
-                            # Using try bc may not be able to change each
-                            # to float
-                            try:
-                                each = float(each)
-                                if each >= greater_or_equal \
-                                    and each > greater \
-                                    and each <= less_or_equal \
-                                        and each < less:
-                                    matching_releases.append(each)
-                            except:
-                                continue
-                        print("matching releases=", matching_releases)
-                        version = str(max(matching_releases))
-                        print("best match for ", requirement, "was", version)
-                        url = get_gz_url_from_version(pypi_r, version)
-
-                        download_response = requests.get(url)
-                        sha = sha256(download_response.content).hexdigest()
-                        resources[name] = {
-                            'name': name, 'url': url, 'sha256': sha}
-
-                for key, sub in resources.items():
-                    print(resource_template.render(resource=key,
-                          url=sub['url'], sha256=sub['sha256']))
+        for key, sub in resources.items():
+            click.echo(resource_template.render(resource=key,
+                       url=sub['url'], sha256=sub['sha256']))

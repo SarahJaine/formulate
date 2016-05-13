@@ -1,5 +1,5 @@
-click==6.6
--e git+git@github.com:SarahJaine/formulate.git@6746578a1b566d6eb4e2002d493c3f07ddf79b46#egg=formulate
+click>=6.6,<7.0
 Jinja2==2.8
 MarkupSafe==0.23
-requests==2.10.0
+requests>=2.10.0,<3.0.0
+semver==2.4.1

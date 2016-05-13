@@ -23,6 +23,7 @@ setup(
             'click>=6.6,<7',
             'requests>=2.9.1,<3',
             'jinja2>=2.7,<3',
+            'semver>=2.4.1,<3'
          ],
         entry_points='''
             [console_scripts]
