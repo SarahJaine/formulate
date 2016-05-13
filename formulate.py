@@ -12,8 +12,17 @@ resource_template = Template('\tresource "{{ resource }}" do\n\
     \tend')
 
 
+def get_gz_url_from_version(r, version):
+    '''from name and version in pypi response, return GNU zipped file url'''
+    sub_list = r.json()['releases'][version]
+    for each in sub_list:
+        url = each.get('url')
+        if url[-3:] == '.gz':
+            return url
+
+
 def get_gz_url(r):
-    '''return GNU zipped file url from pypi get response'''
+    '''from name in pypi response, return GNU zipped file url'''
     url_keys = r.json()['urls']
     for each in url_keys:
         if each['url'][-3:] == '.gz':
@@ -21,13 +30,25 @@ def get_gz_url(r):
             return url
 
 
-def get_gz_url_from_version(r, version):
-    '''return GNU zipped file url from pypi get response'''
-    sub_list = r.json()['releases'][version]
-    for each in sub_list:
-        url = each.get('url')
-        if url[-3:] == '.gz':
-            return url
+def find_semantic_version(releases, versions):
+    matching_releases = []
+    for release in releases:
+        if release.count('.') == 2:
+            try:
+                if semver.match(release, versions[0]) \
+                        and semver.match(release, versions[1]):
+                    matching_releases.append(release)
+            except:
+                pass
+    if len(matching_releases) == 1:
+        out = matching_releases[0]
+    elif len(matching_releases) == 2:
+        out = semver.max_ver(matching_releases[0], matching_releases[1])
+    elif len(matching_releases) > 2:
+        out = sorted(matching_releases)[-1]
+    else:
+        out = False
+    return out
 
 
 def find_numeric_version(releases, versions):
@@ -45,27 +66,6 @@ def find_numeric_version(releases, versions):
     elif len(matching_releases) == 2:
         out = max(float(matching_releases[0]),
                   float(matching_releases[1]))
-    elif len(matching_releases) > 2:
-        out = sorted(matching_releases)[-1]
-    else:
-        out = False
-    return out
-
-
-def find_semantic_version(releases, versions):
-    matching_releases = []
-    for release in releases:
-        if release.count('.') == 2:
-            try:
-                if semver.match(release, versions[0]) \
-                        and semver.match(release, versions[1]):
-                    matching_releases.append(release)
-            except:
-                pass
-    if len(matching_releases) == 1:
-        out = matching_releases[0]
-    elif len(matching_releases) == 2:
-        out = semver.max_ver(matching_releases[0], matching_releases[1])
     elif len(matching_releases) > 2:
         out = sorted(matching_releases)[-1]
     else:
@@ -119,7 +119,7 @@ def cli(r):
                     versions = requirement[len(name):].split(',')
 
                     pypi_r = requests.get(
-                        "https://pypi.python.org/pypi/{0}/json".format(name))
+                        'https://pypi.python.org/pypi/{0}/json'.format(name))
 
                     if pypi_r.status_code != 200:
                             click.echo('{0} was not found on pypi.'.format(
