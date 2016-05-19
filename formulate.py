@@ -6,10 +6,10 @@ import requests
 import semver
 
 
-resource_template = Template('\tresource "{{ resource }}" do\n\
+resource_template = Template('''\tresource "{{ resource }}" do\n\
     \t\turl "{{ url }}"\n\
     \t\tsha256 "{{ sha256 }}"\n\
-    \tend')
+    \tend''')
 
 
 def get_gz_url_from_version(r, version):
@@ -105,9 +105,9 @@ def cli(r):
                             continue
                         else:
                             version_latest = pypi_r.json()['info']['version']
-                            if click.confirm('{0} version {1} was not found. \
+                            if click.confirm('''{0} version {1} was not found. \
                             Would you like to use the latest stable release, \
-                            version {2}, instead?'.format(
+                            version {2}, instead?'''.format(
                                     name, version, version_latest)) is False:
                                 continue
 
