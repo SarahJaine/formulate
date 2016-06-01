@@ -1,3 +1,4 @@
+import sys
 import click
 from hashlib import sha256
 from jinja2 import Template
@@ -75,83 +76,88 @@ def find_numeric_version(releases, versions):
 
 @click.command()
 @click.option('--r', is_flag=True,
-              help='Write resources for ./requirements.txt.')
+              help='Write resources from ./requirements.txt.')
 def cli(r):
     '''Generate homebrew formula resources for your virutal environment's \
     pypi packages and their dependencies.'''
     if r:
-        with open('requirements.txt', 'r') as requirements_file:
-            requirements = requirements_file.read().strip().split('\n')
+        try:
+            with open('requirements.txt', 'r') as requirements_file:
+                requirements = requirements_file.read().strip().split('\n')
+        except FileNotFoundError:
+            sys.exit(click.echo(
+                'Could not find requirements.txt in the current directory.'))
+        resources = {}
+        for requirement in requirements:
+            # Version requirement was given as an equality
+            if '==' in requirement:
+                requirement = requirement.split('==')
+                name = requirement[0]
+                version = requirement[1]
 
-            resources = {}
-            for requirement in requirements:
-                # Version requirement was given as an equality
-                if '==' in requirement:
-                    requirement = requirement.split('==')
-                    name = requirement[0]
-                    version = requirement[1]
+                pypi_r = requests.get(
+                        'https://pypi.python.org/pypi/{0}/{1}/json'.format(
+                            name, version))
 
+                # If version not found, try to find by name only
+                if pypi_r.status_code != 200:
                     pypi_r = requests.get(
-                            'https://pypi.python.org/pypi/{0}/{1}/json'.format(
-                                name, version))
-
-                    # If version not found, try to find by name only
+                        'https://pypi.python.org/pypi/{0}/json'.format(
+                            name))
                     if pypi_r.status_code != 200:
-                        pypi_r = requests.get(
-                            'https://pypi.python.org/pypi/{0}/json'.format(
-                                name))
-                        if pypi_r.status_code != 200:
-                            click.echo('{0} was not found on pypi.'.format(
-                                name))
-                            continue
-                        else:
-                            version_latest = pypi_r.json()['info']['version']
-                            if click.confirm('''{0} version {1} was not found. \
-                            Would you like to use the latest stable release, \
-                            version {2}, instead?'''.format(
-                                    name, version, version_latest)) is False:
-                                continue
-
-                # Version requirement was given as an inequation
-                else:
-                    requirement_split = re.split('[<>=,]', requirement)
-                    requirement_split = list(filter(None, requirement_split))
-                    name = requirement_split[0]
-                    versions = requirement[len(name):].split(',')
-
-                    pypi_r = requests.get(
-                        'https://pypi.python.org/pypi/{0}/json'.format(name))
-
-                    if pypi_r.status_code != 200:
-                            click.echo('{0} was not found on pypi.'.format(
-                                name))
-                            continue
-
-                    # If package on pypi, find version that meets requirements
+                        click.echo(
+                            '{0} was not found on pypi.'.format(name))
+                        continue
                     else:
-                        releases = list(pypi_r.json()['releases'].keys())
-                        # Try semantic version parsing
-                        try:
-                            version = find_semantic_version(releases, versions)
-                        # If error, try numeric version parsing
-                        except:
-                            version = find_numeric_version(releases, versions)
+                        version_latest = pypi_r.json()['info']['version']
+                        if click.confirm(
+                            '{0} version {1} was not found.\n'
+                            'Would you like to use the latest stable release, '
+                            'version {2}, instead?'.format(
+                                name, version, version_latest)) is False:
+                            continue
 
-                # If a version was found, use that version
-                if version:
-                    url = get_gz_url_from_version(pypi_r, version)
-                # Else, just use name
-                else:
-                    url = get_gz_url_without_version(pypi_r)
+            # Version requirement was given as an inequation
+            else:
+                requirement_split = re.split('[<>=,]', requirement)
+                requirement_split = list(filter(None, requirement_split))
+                name = requirement_split[0]
+                versions = requirement[len(name):].split(',')
 
-                if url:
-                    download_response = requests.get(url)
-                    sha = sha256(download_response.content).hexdigest()
-                    resources[name] = {
-                        'name': name, 'url': url, 'sha256': sha}
+                pypi_r = requests.get(
+                    'https://pypi.python.org/pypi/{0}/json'.format(name))
+
+                if pypi_r.status_code != 200:
+                        click.echo('{0} was not found on pypi.'.format(
+                            name))
+                        continue
+
+                # If package on pypi, find version that meets requirements
                 else:
-                    click.echo('''An error occured while trying to formulate \
-                        a url and sha256 for {0}'''.format(name))
+                    releases = list(pypi_r.json()['releases'].keys())
+                    # Try semantic version parsing
+                    try:
+                        version = find_semantic_version(releases, versions)
+                    # If error, try numeric version parsing
+                    except:
+                        version = find_numeric_version(releases, versions)
+
+            # If a version was found, use that version
+            if version:
+                url = get_gz_url_from_version(pypi_r, version)
+            # Else, just use name
+            else:
+                url = get_gz_url_without_version(pypi_r)
+
+            if url:
+                download_response = requests.get(url)
+                sha = sha256(download_response.content).hexdigest()
+                resources[name] = {
+                    'name': name, 'url': url, 'sha256': sha}
+            else:
+                click.echo(
+                    'An error occured while trying to formulate '
+                    'url and sha256 for {0}.'.format(name))
 
         # Create and echo formula stanzas
         for key, sub in resources.items():
