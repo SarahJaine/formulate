@@ -21,7 +21,7 @@ def get_gz_url_from_version(r, version):
             return url
 
 
-def get_gz_url(r):
+def get_gz_url_without_version(r):
     '''from name in pypi response, return GNU zipped file url'''
     url_keys = r.json()['urls']
     for each in url_keys:
@@ -85,6 +85,7 @@ def cli(r):
 
             resources = {}
             for requirement in requirements:
+                # Version requirement was given as an equality
                 if '==' in requirement:
                     requirement = requirement.split('==')
                     name = requirement[0]
@@ -111,7 +112,7 @@ def cli(r):
                                     name, version, version_latest)) is False:
                                 continue
 
-                # Requirements were given as a range
+                # Version requirement was given as an inequation
                 else:
                     requirement_split = re.split('[<>=,]', requirement)
                     requirement_split = list(filter(None, requirement_split))
@@ -141,14 +142,18 @@ def cli(r):
                     url = get_gz_url_from_version(pypi_r, version)
                 # Else, just use name
                 else:
-                    url = get_gz_url(pypi_r)
+                    url = get_gz_url_without_version(pypi_r)
 
                 if url:
                     download_response = requests.get(url)
                     sha = sha256(download_response.content).hexdigest()
                     resources[name] = {
                         'name': name, 'url': url, 'sha256': sha}
+                else:
+                    click.echo('''An error occured while trying to formulate \
+                        a url and sha256 for {0}'''.format(name))
 
+        # Create and echo formula stanzas
         for key, sub in resources.items():
             click.echo(resource_template.render(resource=key,
                        url=sub['url'], sha256=sub['sha256']))
